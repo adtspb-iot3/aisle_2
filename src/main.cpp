@@ -39,6 +39,7 @@ const char* apb="aisle_/press_button";
 const char* msg_motion="aisle_/motion";
 const char* extLight = "aisle_/ext_light";
 const char* topic_security = "aisle_/security";
+const char* topic_security_on = "aisle_/security_on";
 const char* TopicMaxLevel = "aisle_/maxLevel";
 const char* Topic_Light = "aisle_/light";
 volatile int buttonStatus{};
@@ -141,7 +142,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
       light.setStat(StatLed::OFF);
       hardOn = false;
     }
-  } 
+  } else if (strTopic == topic_security_on){
+			iled.blink();
+	}
 }
 //******************************************************
 void reconnect() {
@@ -157,8 +160,7 @@ void reconnect() {
 //      client.publish("outTopic", "hello world");
       client.subscribe("aisle_/light");
       client.subscribe("aisle_/maxLevel");
-      client.subscribe("aisle_/ledBlinkB");
-      client.subscribe("aisle_/ledBlinkG");
+			client.subscribe(topic_security_on);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
