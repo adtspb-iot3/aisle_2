@@ -41,6 +41,7 @@ const char* extLight = "aisle_/ext_light";
 const char* topic_security = "aisle_/security";
 const char* topic_security_on = "aisle_/security_on";
 const char* TopicMaxLevel = "aisle_/maxLevel";
+const char* TopicMaxLevelTime = "aisle_/maxLevelTime";
 const char* Topic_Light = "aisle_/light";
 volatile int buttonStatus{};
 volatile bool ir_motion{};
@@ -130,10 +131,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
   for (int i = 0; i < length; i++) {
     str += (char)payload[i];
   }
-
-  if(strTopic == "aisle_/maxLevel"){
+  if(strTopic == "aisle_/maxLevelTime"){
+    light.setMaxLevel(str.toInt());
+  } else if(strTopic == "aisle_/maxLevel"){
     light.setMaxLevel(str.toInt());
 		light.setStat(StatLed::ON);
+    hardOn = true;
   } else if(strTopic == "aisle_/light"){
     if ((char)payload[0] == '1') {
       hardOn = true;
@@ -158,8 +161,9 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
 //      client.publish("outTopic", "hello world");
-      client.subscribe("aisle_/light");
-      client.subscribe("aisle_/maxLevel");
+      client.subscribe(Topic_Light);
+      client.subscribe(TopicMaxLevel);
+      client.subscribe(TopicMaxLevelTime);
 			client.subscribe(topic_security_on);
     } else {
       Serial.print("failed, rc=");
