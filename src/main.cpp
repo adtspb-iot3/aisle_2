@@ -43,6 +43,10 @@ const char* topic_security_on = "aisle_/security_on";
 const char* TopicMaxLevel = "aisle_/maxLevel";
 const char* TopicMaxLevelTime = "aisle_/maxLevelTime";
 const char* Topic_Light = "aisle_/light";
+const char* Topic_iLed_off = "aisle_/iLed_off";
+const char* Topic_iLed_on = "aisle_/iLed_on";
+const char* Topic_iLed_unlimited_blink = "aisle_/iLed_unlimited_blink";
+const char* Topic_iLed_limited_blink = "aisle_/iLed_limited_blink";
 volatile int buttonStatus{};
 volatile bool ir_motion{};
 bool ledStatus{};
@@ -222,9 +226,9 @@ float getLuxs(BH1750 *lightMeter, float &lux){
     tMotion.setTimer();
 		lux = getLuxs(&lightMeter, lux);
 		client.publish("aisle_/lux", (String(lux)).c_str());
-    if(lux <= LIGHT_LEVEL_BH){
-      light.setStat(StatLed::ON);
-    }
+    // if(lux <= LIGHT_LEVEL_BH){
+    //   light.setStat(StatLed::ON);
+    // }
   }
 }
 //************************************  
@@ -236,9 +240,9 @@ void fShort(){
   } else {
     iled.blink(1);
     hardOn = !hardOn;
-    light.setStat(hardOn? StatLed::ON : StatLed::OFF);
-    const char* msg = hardOn? "1":"0";
-    client.publish(apb, msg);
+    // light.setStat(hardOn? StatLed::ON : StatLed::OFF);
+    // const char* msg = hardOn? "1":"0";
+    client.publish(apb, "1"); //msg);
   }
 }
 //************************************* 
@@ -247,10 +251,10 @@ void fDouble(){
   if(security){
     hardOn = false;
     iled.off();
-    light.setStat(StatLed::OFF);
+    // light.setStat(StatLed::OFF);
   }
   iled.blink();
-  client.publish(topic_security, (security? "1": "0"));
+  client.publish(topic_security, "1");// (security? "1": "0"));
 }
 //************************************
 void fLong(){
@@ -259,13 +263,14 @@ void fLong(){
 		iled.off();
 		client.publish(topic_security, "0");
 	} else {
-		light.setMaxLevel(light.getMaxLevel() == 255? 30 : 255);
+		// light.setMaxLevel(light.getMaxLevel() == 255? 30 : 255);
 		iled.blink(2);
 		if(!hardOn){
 			hardOn = true;
-			light.setStat(StatLed::ON);
+			// light.setStat(StatLed::ON);
 		}
 	}
+  client.publish(apb, "2");
 }
 //************************************
 void loop() {
@@ -311,8 +316,8 @@ void loop() {
 	if(irLightOn && tMotion.getTimer()){
 		client.publish(msg_motion, "0");
 		irLightOn = false;
-		if(!hardOn){
-			light.setStat(StatLed::OFF);
-		}    
+		// if(!hardOn){
+		// 	light.setStat(StatLed::OFF);
+		// }    
 	}
 }

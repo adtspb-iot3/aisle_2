@@ -9,7 +9,6 @@ private:
         int pin;
         bool stat_led{};
         int mig{};
-        unsigned short els{};
 public:
     Iled(int p): Timer(200){ 
         pin = p;
@@ -36,7 +35,7 @@ public:
         if(mig != 0 && getTimer()){
             setTimer();
             stat_led = !stat_led;
-            stat_led == false ? mig -= (mig > 0) : els = 0;
+            if(stat_led == false) mig -= (mig > 0);
             digitalWrite(pin, stat_led);
         }
     }

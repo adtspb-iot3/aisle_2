@@ -21,7 +21,7 @@ class OneLed:	public Timer
 	int levelDim{ 0 };
 	int maxLevel{100};
 	StatLed statLed{ StatLed::ON };
-	int ledChannel = 0;
+	int ledChannel { 0 };
 public:
 	OneLed(int ch): Timer(SHORT_DT), ledChannel(ch) {}
 	void setStat(StatLed stat);
