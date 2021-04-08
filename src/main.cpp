@@ -151,7 +151,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
     }
   } else if (strTopic == topic_security_on){
 			iled.blink();
-	}
+	} else if (strTopic == Topic_iLed_on) {
+      iled.on();
+  } else if (strTopic == Topic_iLed_off) {
+      iled.off();
+  } else if (strTopic == Topic_iLed_unlimited_blink){
+    iled.blink();
+  }  else if (strTopic == Topic_iLed_limited_blink){
+    iled.blink(str.toInt());
+  }
 }
 //******************************************************
 void reconnect() {
@@ -165,6 +173,10 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
 //      client.publish("outTopic", "hello world");
+      client.subscribe(Topic_iLed_on);
+      client.subscribe(Topic_iLed_off);
+      client.subscribe(Topic_iLed_unlimited_blink);
+      client.subscribe(Topic_iLed_limited_blink);
       client.subscribe(Topic_Light);
       client.subscribe(TopicMaxLevel);
       client.subscribe(TopicMaxLevelTime);
