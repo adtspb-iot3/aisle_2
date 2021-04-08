@@ -7,11 +7,7 @@
 const uint16_t LONG_DT {50};
 const uint16_t SHORT_DT {20};
 
-#if defined(ARDUINO) && ARDUINO >= 100
-#include "arduino.h"
-#else
-	#include "WProgram.h"
-#endif
+#include <Arduino.h>
 
 enum class StatLed { OFF, ON, BLINK, DIM };
 
