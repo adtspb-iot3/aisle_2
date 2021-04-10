@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
@@ -11,16 +12,16 @@ BH1750 lightMeter(0x23);
 
 // Update these with values suitable for your network.
 
-const char* ssid = "adtspb-iot3";
-const char* password = "iot3-620";
-const char* mqtt_server = "10.152.32.101";
+const char* ssid = "ivanych";
+const char* password = "stroykomitet";
+const char* mqtt_server = "192.168.1.34";
 const int BUILTIN_LED = 17; //управление включением света
 const int BUILTIN_LED_CHANEL {0};
 const int IR_DATA = 34; //датчик движения
 const int PIN_BUTTON = 16;
-const int LED_BLINK_R = 26;  //мигающий светодиод постановки на охрану
-const int LED_BLINK_G = 25;  //мигающий светодиод
-const int LED_BLINK_B = 27;  //мигающий светодиод
+const int LED_BLINK_R = 26;  //мигающий светодиод
+// const int LED_BLINK_G = 25;  //мигающий светодиод
+// const int LED_BLINK_B = 27;  //мигающий светодиод
 //i2c sda-21, scl-22
 OneLed light(BUILTIN_LED_CHANEL);
 WiFiClient espClient;
@@ -33,16 +34,17 @@ char msg[MSG_BUFFER_SIZE];
 int value{};
 
 
-const char* LedBlink_G="aisle_/ledBlinkG";
-const char* LedBlink_B="aisle_/ledBlinkB";
-const char* apb="aisle_/press_button";
-const char* msg_motion="aisle_/motion";
-const char* extLight = "aisle_/ext_light";
-const char* topic_security = "aisle_/security";
-const char* topic_security_on = "aisle_/security_on";
-const char* TopicMaxLevel = "aisle_/maxLevel";
-const char* TopicMaxLevelTime = "aisle_/maxLevelTime";
-const char* Topic_Light = "aisle_/light";
+const char* LedBlink_G="helga_table/ledBlinkG";
+const char* LedBlink_B="helga_table/ledBlinkB";
+const char* apb="helga_table/press_button";
+const char* msg_motion="helga_table/motion";
+const char* extLight = "helga_table/ext_light";
+const char* topic_security = "helga_table/security";
+const char* topic_security_on = "helga_table/security_on";
+const char* TopicMaxLevel = "helga_table/maxLevel";
+const char* TopicMaxLevelTime = "helga_table/maxLevelTime";
+const char* Topic_Light = "helga_table/light";
+const char* Topic_Lux = "helga_table/lux";
 volatile int buttonStatus{};
 volatile bool ir_motion{};
 bool ledStatus{};
@@ -131,13 +133,13 @@ void callback(char* topic, byte* payload, unsigned int length) {
   for (int i = 0; i < length; i++) {
     str += (char)payload[i];
   }
-  if(strTopic == "aisle_/maxLevelTime"){
+  if(strTopic == TopicMaxLevelTime){
     light.setMaxLevel(str.toInt());
-  } else if(strTopic == "aisle_/maxLevel"){
+  } else if(strTopic == TopicMaxLevel){
     light.setMaxLevel(str.toInt());
 		light.setStat(StatLed::ON);
     hardOn = true;
-  } else if(strTopic == "aisle_/light"){
+  } else if(strTopic == Topic_Light){
     if ((char)payload[0] == '1') {
       hardOn = true;
       light.setStat(StatLed::ON);
@@ -155,7 +157,7 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
-    String clientId = "ESP32Client-";
+    String clientId = "Olga_table-";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
@@ -181,28 +183,32 @@ void ir_interr(){
 }
 //*********************************************
 void setup() {
+  Serial.begin(115200);
+  delay(3000);
   pinMode(BUILTIN_LED, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   pinMode(IR_DATA, INPUT);  //Датчик движения
   pinMode(PIN_BUTTON, INPUT);  //кнопка
   ledcSetup(BUILTIN_LED_CHANEL, 500, 8);
   ledcAttachPin(BUILTIN_LED, BUILTIN_LED_CHANEL);
 
-  Serial.begin(115200);
+  Serial.println("**********");
+  setup_wifi();
   Wire.begin();
+  //---------------------------
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
   //........................
   attachInterrupt(digitalPinToInterrupt(PIN_BUTTON), push_button_down, RISING);
   attachInterrupt(digitalPinToInterrupt(IR_DATA), ir_interr, RISING);
-  //---------------------------
-  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    Serial.println(F("BH1750 Advanced begin"));
-  }
-  else {
-    Serial.println(F("Error initialising BH1750"));
-  }
-  //------------------
-  setup_wifi();
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
+  // //---------------------------
+  // if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+  //   Serial.println(F("BH1750 Advanced begin"));
+  // }
+  // else {
+  //   Serial.println(F("Error initialising BH1750"));
+  // }
+  // //------------------
+  Serial.println("**********");
 }
 //************************************
 float getLuxs(BH1750 *lightMeter, float &lux){
@@ -221,7 +227,7 @@ float getLuxs(BH1750 *lightMeter, float &lux){
     }
     tMotion.setTimer();
 		lux = getLuxs(&lightMeter, lux);
-		client.publish("aisle_/lux", (String(lux)).c_str());
+		client.publish(Topic_Lux, (String(lux)).c_str());
     if(lux <= LIGHT_LEVEL_BH){
       light.setStat(StatLed::ON);
     }
@@ -293,18 +299,18 @@ void loop() {
 		statsButton = StatsButton::NONE;
 	}
 	//.................................
-	unsigned long now = millis();
-	if (now - lastMsg > 1000) {                                                                 
-		lux = getLuxs(&lightMeter, lux);
-		lastMsg = now;
-		if(lux < LIGHT_LEVEL_BH && lightStat){
-			client.publish(extLight, "0");
-			lightStat = false;
-		} else if(lux >= LIGHT_LEVEL_BH && !lightStat){
-			client.publish(extLight, "1");
-			lightStat = true;
-		}
-	}
+	// unsigned long now = millis();
+	// if (now - lastMsg > 1000) {                                                                 
+	// 	lux = getLuxs(&lightMeter, lux);
+	// 	lastMsg = now;
+	// 	if(lux < LIGHT_LEVEL_BH && lightStat){
+	// 		client.publish(extLight, "0");
+	// 		lightStat = false;
+	// 	} else if(lux >= LIGHT_LEVEL_BH && !lightStat){
+	// 		client.publish(extLight, "1");
+	// 		lightStat = true;
+	// 	}
+	// }
 	light.cycle();
 	iled.cycle();
 	//------------------------------------------ IR
