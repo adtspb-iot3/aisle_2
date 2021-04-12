@@ -201,12 +201,12 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_BUTTON), push_button_down, RISING);
   attachInterrupt(digitalPinToInterrupt(IR_DATA), ir_interr, RISING);
   // //---------------------------
-  // if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-  //   Serial.println(F("BH1750 Advanced begin"));
-  // }
-  // else {
-  //   Serial.println(F("Error initialising BH1750"));
-  // }
+  if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    Serial.println(F("BH1750 Advanced begin"));
+  }
+  else {
+    Serial.println(F("Error initialising BH1750"));
+  }
   // //------------------
   Serial.println("**********");
 }
@@ -267,6 +267,7 @@ void fLong(){
 	} else {
 		light.setMaxLevel(light.getMaxLevel() == 255? 30 : 255);
 		iled.blink(2);
+    client.publish(apb, "2");
 		if(!hardOn){
 			hardOn = true;
 			light.setStat(StatLed::ON);
@@ -299,18 +300,21 @@ void loop() {
 		statsButton = StatsButton::NONE;
 	}
 	//.................................
-	// unsigned long now = millis();
-	// if (now - lastMsg > 1000) {                                                                 
-	// 	lux = getLuxs(&lightMeter, lux);
-	// 	lastMsg = now;
-	// 	if(lux < LIGHT_LEVEL_BH && lightStat){
-	// 		client.publish(extLight, "0");
-	// 		lightStat = false;
-	// 	} else if(lux >= LIGHT_LEVEL_BH && !lightStat){
-	// 		client.publish(extLight, "1");
-	// 		lightStat = true;
-	// 	}
-	// }
+	unsigned long now = millis();
+	if (now - lastMsg > 1000) {                                                                 
+		lux = getLuxs(&lightMeter, lux);
+		lastMsg = now;
+    char buffer[64];
+    snprintf(buffer, sizeof buffer, "%f", lux);
+    client.publish(Topic_Lux, buffer);
+		// if(lux < LIGHT_LEVEL_BH && lightStat){
+		// 	client.publish(extLight, "0");
+		// 	lightStat = false;
+		// } else if(lux >= LIGHT_LEVEL_BH && !lightStat){
+		// 	client.publish(extLight, "1");
+		// 	lightStat = true;
+		// }
+	}
 	light.cycle();
 	iled.cycle();
 	//------------------------------------------ IR
