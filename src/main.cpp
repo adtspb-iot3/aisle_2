@@ -2,13 +2,16 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <BH1750.h>
+#include <Adafruit_BMP085.h>
 #include "OneLed.h"
 //#include "button.h"
 #include "LedBlink.h"
 #include "iled.h"
 
 BH1750 lightMeter(0x23);
+Adafruit_BMP085 bmp;
 
 // Update these with values suitable for your network.
 
@@ -20,31 +23,36 @@ const int BUILTIN_LED_CHANEL {0};
 const int IR_DATA = 34; //датчик движения
 const int PIN_BUTTON = 16;
 const int LED_BLINK_R = 26;  //мигающий светодиод
-// const int LED_BLINK_G = 25;  //мигающий светодиод
-// const int LED_BLINK_B = 27;  //мигающий светодиод
 //i2c sda-21, scl-22
 OneLed light(BUILTIN_LED_CHANEL);
 WiFiClient espClient;
 PubSubClient client(espClient);
-Timer tMotion(20000);
+Timer tMotion(2000);
 Iled iled(LED_BLINK_R);
 unsigned long lastMsg = 0;
+unsigned long lastMsgP = 0;  //давление
+unsigned long lastMsgT = 0;  //температура
+float lastPreassure{};
+float lastTemperature{};
 #define MSG_BUFFER_SIZE	(50)
 char msg[MSG_BUFFER_SIZE];
 int value{};
+uint16_t lastLux{};
 
 
 const char* LedBlink_G="helga_table/ledBlinkG";
 const char* LedBlink_B="helga_table/ledBlinkB";
-const char* apb="helga_table/press_button";
+const char* TopicPressButton="helga_table/press_button";
 const char* msg_motion="helga_table/motion";
 const char* extLight = "helga_table/ext_light";
-const char* topic_security = "helga_table/security";
-const char* topic_security_on = "helga_table/security_on";
+const char* topic_security = "aisle/security";
+// const char* topic_security_on = "helga_table/security_on";
 const char* TopicMaxLevel = "helga_table/maxLevel";
 const char* TopicMaxLevelTime = "helga_table/maxLevelTime";
 const char* Topic_Light = "helga_table/light";
 const char* Topic_Lux = "helga_table/lux";
+const char* Topic_Pressure = "helga_table/pressure";
+const char* Topic_Temperature = "helga_table/temperature";
 volatile int buttonStatus{};
 volatile bool ir_motion{};
 bool ledStatus{};
@@ -81,7 +89,7 @@ void IRAM_ATTR push_button_up(){
       statsButton = StatsButton::LONG_PRESS;
     }
      else {
-      if( t3 > 0 )
+      if( (t3 > 0) && (t2 - t3 > TIME_DOUBLE))
         statsButton = StatsButton::SHORT_PRESS;
     }
   attachInterrupt(PIN_BUTTON, push_button_down, RISING);
@@ -137,7 +145,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     light.setMaxLevel(str.toInt());
   } else if(strTopic == TopicMaxLevel){
     light.setMaxLevel(str.toInt());
-		light.setStat(StatLed::ON);
+		// light.setStat(StatLed::ON); //можно закомментировать, дублирует nodered
     hardOn = true;
   } else if(strTopic == Topic_Light){
     if ((char)payload[0] == '1') {
@@ -147,8 +155,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
       light.setStat(StatLed::OFF);
       hardOn = false;
     }
-  } else if (strTopic == topic_security_on){
-			iled.blink();
+  } else if (strTopic == topic_security){
+    if ((char)payload[0] == '1') {
+      light.setStat(StatLed::OFF);
+      hardOn = false;
+    }
 	}
 }
 //******************************************************
@@ -166,7 +177,7 @@ void reconnect() {
       client.subscribe(Topic_Light);
       client.subscribe(TopicMaxLevel);
       client.subscribe(TopicMaxLevelTime);
-			client.subscribe(topic_security_on);
+			client.subscribe(topic_security);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -208,6 +219,11 @@ void setup() {
     Serial.println(F("Error initialising BH1750"));
   }
   // //------------------
+  if (!bmp.begin()) {
+	Serial.println("Could not find a valid BMP085/BMP180 sensor, check wiring!");
+	while (1) {}
+  }
+  //--------------------------
   Serial.println("**********");
 }
 //************************************
@@ -235,44 +251,39 @@ float getLuxs(BH1750 *lightMeter, float &lux){
 }
 //************************************  
 void fShort(){
-  if(security){
-    security = false;
-    iled.off();
-    client.publish(topic_security, "0");
-  } else {
     iled.blink(1);
-    hardOn = !hardOn;
-    light.setStat(hardOn? StatLed::ON : StatLed::OFF);
-    const char* msg = hardOn? "1":"0";
-    client.publish(apb, msg);
-  }
+    client.publish(TopicPressButton, "0");
+  // }
 }
 //************************************* 
 void fDouble(){
-  security = !security;
-  if(security){
-    hardOn = false;
-    iled.off();
-    light.setStat(StatLed::OFF);
-  }
-  iled.blink();
-  client.publish(topic_security, (security? "1": "0"));
+	iled.blink(2);
+  client.publish(TopicPressButton, "2");
 }
 //************************************
 void fLong(){
-	if(security){
-		security = false;
-		iled.off();
-		client.publish(topic_security, "0");
-	} else {
-		light.setMaxLevel(light.getMaxLevel() == 255? 30 : 255);
-		iled.blink(2);
-    client.publish(apb, "2");
-		if(!hardOn){
-			hardOn = true;
-			light.setStat(StatLed::ON);
-		}
-	}
+  iled.blink(3);
+  client.publish(TopicPressButton, "1");
+}
+//************************************
+void getTemperature(){
+	unsigned long now = millis();
+	if (now - lastMsgT > 10000) {
+		lastMsgT = now;
+    float t = bmp.readTemperature();
+    lastTemperature = t;
+    client.publish(Topic_Temperature,String(t).c_str());
+  }
+}
+//************************************
+void getPressure(){
+	unsigned long now = millis();
+	if (now - lastMsgP > 1800000) {
+		lastMsgP = now;
+    float p = bmp.readPressure() / 133.322;
+    lastPreassure = p; 
+    client.publish(Topic_Pressure,String(p).c_str());
+  }
 }
 //************************************
 void loop() {
@@ -304,16 +315,16 @@ void loop() {
 	if (now - lastMsg > 1000) {                                                                 
 		lux = getLuxs(&lightMeter, lux);
 		lastMsg = now;
-    char buffer[64];
-    snprintf(buffer, sizeof buffer, "%f", lux);
-    client.publish(Topic_Lux, buffer);
-		// if(lux < LIGHT_LEVEL_BH && lightStat){
-		// 	client.publish(extLight, "0");
-		// 	lightStat = false;
-		// } else if(lux >= LIGHT_LEVEL_BH && !lightStat){
-		// 	client.publish(extLight, "1");
-		// 	lightStat = true;
-		// }
+    if( abs(lastLux - lux) > 1 ){
+      lastLux = lux;
+      char buffer[64];
+      snprintf(buffer, sizeof buffer, "%f", lux);
+      client.publish(Topic_Lux, buffer);
+      //-----------------------
+      getPressure();
+      getTemperature();
+      //-----------------------
+    }
 	}
 	light.cycle();
 	iled.cycle();
